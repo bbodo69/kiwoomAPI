@@ -5,127 +5,169 @@ import ClassMoeum
 import datetime
 import exchange_calendars as ecals
 import math
+import requests
 import numpy
 from PyQt5.QtCore import QEventLoop
 from PyQt5.QtWidgets import *
 from PyQt5.QAxContainer import *
 from twilio.rest import Client
 
-class MyWindow(QMainWindow):
+class MyWindow():
     cl = ClassMoeum
+    try:
+        def __init__(self):
+            super().__init__()
 
-    def __init__(self):
-        super().__init__()
+            self.StartRate = []
+            self.HighRate = []
+            self.LowRate = []
+            self.EndRate = []
 
-        self.StartRate = []
-        self.HighRate = []
-        self.LowRate = []
-        self.EndRate = []
+            # Kiwoom Login
+            self.kiwoom = QAxWidget("KHOPENAPI.KHOpenAPICtrl.1")
+            self.kiwoom.CommConnect()
 
-        # Kiwoom Login
-        self.kiwoom = QAxWidget("KHOPENAPI.KHOpenAPICtrl.1")
-        #self.kiwoom.dynamicCall("CommConnect()")
-        self.kiwoom.CommConnect()
+            # Open API+ Event
 
-        # Open API+ Event
+            # 이벤트 루프 선언
+            self.opt10086_req_loop = QEventLoop()
+            self.opt10001_req_loop = QEventLoop()
+            self.event_connect_loop = QEventLoop()
+            self.receive_trCondition_loop = QEventLoop()
+            self.GetConditionLoad_loop = QEventLoop()
+            self.receive_conditionVer_loop = QEventLoop()
+            # 클래스로 접근법
+            # self.kiwoom.OnEventConnect.connect(self.cl.event_connect)
 
-        # 이벤트 루프 선언
-        self.opt10086_req_loop = QEventLoop()
-        self.event_connect_loop = QEventLoop()
-        self.receive_trCondition_loop = QEventLoop()
-        # 클래스로 접근법
-        # self.kiwoom.OnEventConnect.connect(self.cl.event_connect)
+            self.kiwoom.OnReceiveTrData.connect(self.receive_trdata)
+            self.kiwoom.OnReceiveTrCondition.connect(self.receive_trCondition)
+            self.kiwoom.OnReceiveMsg.connect(self.receive_msg)
+            self.kiwoom.OnReceiveChejanData.connect(self.receive_Chejan)
+            self.kiwoom.OnReceiveConditionVer.connect(self.receive_conditionVer)
 
-        self.kiwoom.OnReceiveTrData.connect(self.receive_trdata)
-        self.kiwoom.OnReceiveTrCondition.connect(self.receive_trCondition)
-        self.kiwoom.OnReceiveMsg.connect(self.receive_msg)
-        self.kiwoom.OnReceiveChejanData.connect(self.receive_Chejan)
+            self.kiwoom.OnEventConnect.connect(self.event_connect)
+            self.event_connect_loop.exec_()
 
-        self.setWindowTitle("PyStock")
-        self.setGeometry(600, 600, 600, 640)
+            # 계좌정보 불러오기
+            account_num = self.kiwoom.dynamicCall("GetLoginInfo(QString)", ["ACCNO"])
+            server_info = self.kiwoom.dynamicCall("GetLoginInfo(QString)", "GetServerGubun")
+            account_cnt = self.kiwoom.dynamicCall("GetLoginInfo(QString)", "ACCOUNT_CNT")
 
-        label = QLabel('입력란: ', self)
-        label.move(20, 20)
+            # 두번째 계좌정보 사용
+            self.useAccountNum = str(account_num).split(";")[1]
+            print("계좌정보 : " + str(self.useAccountNum))
 
-        self.code_edit1 = QLineEdit(self)
-        self.code_edit1.setGeometry(10, 10, 60, 30)
-        self.code_edit1.move(90, 20)
+        # # 조건검색식 불러오기
+        #     # isLoad = self.kiwoom.dynamicCall("GetConditionLoad()")
+        #     print("조건검색식 불러오기")
+        #     isLoad = self.kiwoom.GetConditionLoad()
+        #     self.receive_conditionVer_loop.exec_()
+        #
+        #     if isLoad == 0:
+        #         print("조건식 요청 실패")
+        #     data = self.kiwoom.dynamicCall("GetConditionNameList()")
+        #     if data == "":
+        #         print("getConditionNameList(): 사용자 조건식이 없습니다.")
+        #
+        #     self.conditionList = data.split(';')
+        #     del self.conditionList[-1]
+        #     print("조건식 리스트 검색 : " + str(self.conditionList))
+        #     self.condition = self.conditionList[-2]
+        #
+        #     # 조건식 검색 종목명 추출
+        #     screenNo = "0150"
+        #     print("사용 조건식 : " + str(self.condition))
+        #     conditionName = self.condition.split("^")[1]
+        #     conditionIndex = int(self.condition.split("^")[0])
+        #     print("조건식 이름 : " + conditionName + " " + str(type(conditionName)))
+        #     print("조건식 번호 : " + str(conditionIndex) + " " + str(type(conditionIndex)))
+        #     isRealTime = 1
+        #     isRequest = self.kiwoom.dynamicCall("SendCondition(QString, QString, int, int)",
+        #                                         screenNo, conditionName, conditionIndex, isRealTime)
+        #     self.receive_trCondition_loop.exec_()
+        #     print(isRequest)
+        #     if isRequest == 0:
+        #         print("조건검색 실패")
+        #     if isRequest == 1:
+        #         print("조건검색 접속 성공")
 
-        self.code_edit2 = QLineEdit(self)
-        self.code_edit2.setGeometry(10, 10, 60, 30)
-        self.code_edit2.move(160, 20)
+            # 검색 종목명 가격 비교
 
-        self.code_edit3 = QLineEdit(self)
-        self.code_edit3.setGeometry(10, 10, 60, 30)
-        self.code_edit3.move(230, 20)
+            #self.btn10_clicked()
 
-        self.code_edit4 = QLineEdit(self)
-        self.code_edit4.setGeometry(10, 10, 60, 30)
-        self.code_edit4.move(300, 20)
+        # 조건검색식 불러오기
+            # isLoad = self.kiwoom.dynamicCall("GetConditionLoad()")
+            print("조건검색식 불러오기")
+            isLoad = self.kiwoom.GetConditionLoad()
+            self.receive_conditionVer_loop.exec_()
 
-        self.text_edit = QTextEdit(self)
-        self.text_edit.setGeometry(10, 180, 500, 180)
-        self.text_edit.setEnabled(True)
+            if isLoad == 0:
+                print("조건식 요청 실패")
+            data = self.kiwoom.dynamicCall("GetConditionNameList()")
+            if data == "":
+                print("getConditionNameList(): 사용자 조건식이 없습니다.")
 
-        self.listWidget = QListWidget(self)
-        self.listWidget.setGeometry(10, 370, 500, 240)
+            self.conditionList = data.split(';')
+            del self.conditionList[-1]
+            print("조건식 리스트 : " + str(self.conditionList))
+            
+            # 조건식 선택
+            self.condition = self.conditionList[-1]
 
-        btn1 = QPushButton("조회", self)
-        btn1.move(10, 60)
-        btn1.clicked.connect(self.btn1_clicked)
+            # 조건식 검색 종목명 추출
+            screenNo = "0150"
+            print("사용 조건식 : " + str(self.condition))
+            conditionName = self.condition.split("^")[1]
+            conditionIndex = int(self.condition.split("^")[0])
+            print("조건식 이름 : " + conditionName + " " + str(type(conditionName)))
+            print("조건식 번호 : " + str(conditionIndex) + " " + str(type(conditionIndex)))
+            isRealTime = 1            
+            # self.codeList 에 코드리스트 저장
+            isRequest = self.kiwoom.dynamicCall("SendCondition(QString, QString, int, int)",
+                                                screenNo, conditionName, conditionIndex, isRealTime)
+            self.receive_trCondition_loop.exec_()
+            print(isRequest)
+            if isRequest == 0:
+                print("조건검색 실패")
+            if isRequest == 1:
+                print("조건검색 접속 성공")
 
-        btn2 = QPushButton("계좌조회", self)
-        btn2.move(120, 60)
-        btn2.clicked.connect(self.btn2_clicked)
+            # 검색 종목명 가격 비교
+            #self.btn10_clicked()
 
-        btn3 = QPushButton("예수금상세현황요청", self)
-        btn3.setGeometry(10, 10, 150, 30)
-        btn3.move(230, 60)
-        btn3.clicked.connect(self.btn3_clicked)
+            # 매수 진행 (매개변수 코드리스트 필요)
+            self.buying(self.codeList)
+            self.SendLineMessage()
+            # self.powreOff()
 
-        btn4 = QPushButton("종목코드 얻기", self)
-        btn4.move(10, 100)
-        btn4.clicked.connect(self.btn4_clicked)
+    except Exception as e:
+        print(e)
 
-        btn5 = QPushButton("주식거래원요청", self)
-        btn5.move(120, 100)
-        btn5.clicked.connect(self.btn5_clicked)
+            # # 조건식 결과 종목 매수 진행
+            #
+            # code = '005110'
+            # orderAmount = '1'
+            # orderPrice = '701'
+            # # 사용자구분명, 화면번호, 계좌번호 10자리, 주문유형 1~7, 종목코드(6자리), 주문수량, 주문가격, 거래구분 00~81, 원주문번호
+            #
+            # isRequest = self.kiwoom.SendOrder("SendOrder_req", "0211", "5061614811", 1, code,
+            #                                   int(orderAmount), int(orderPrice), "00", "")
+            #
+            # if isRequest == 0:
+            #     print("매수주문 성공")
+            # else:
+            #     print("매수주문 실패 : " + str(isRequest))
 
-        btn6 = QPushButton("조건검색 리스트", self)
-        btn6.move(230, 100)
-        btn6.clicked.connect(self.btn6_clicked)
-
-        btn7 = QPushButton("조건검색", self)
-        btn7.move(340, 100)
-        btn7.clicked.connect(self.btn7_clicked)
-
-        btn8 = QPushButton("조건검색중지", self)
-        btn8.move(450, 100)
-        btn8.clicked.connect(self.btn8_clicked)
-
-        btn9 = QPushButton("주문", self)
-        btn9.move(10, 140)
-        btn9.clicked.connect(self.btn9_clicked)
-
-        btn10 = QPushButton("일자비교", self)
-        btn10.move(120, 140)
-        btn10.clicked.connect(self.btn10_clicked)
-
-        self.kiwoom.OnEventConnect.connect(self.event_connect)
-        self.event_connect_loop.exec_()
-
+    # 로그인
     def event_connect(self, err_code):
         if err_code == 0:
-            self.text_edit.append("로그인 성공")
             self.event_connect_loop.exit()
 
     def btn1_clicked(self):
-        code = self.code_edit1.text()
-        self.text_edit.setText("종목코드 : " + code)
         # self.text_edit.append("종목코드 : " + code)
 
         # SetInputValue
-        self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "종목코드", code)
+        self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "종목코드", "")
 
         # CommRqData
         self.kiwoom.dynamicCall("CommRqData(QString, QString, int, QString)", "opt10001_req", "opt10001", 0, "0101")
@@ -135,54 +177,14 @@ class MyWindow(QMainWindow):
         server_info = self.kiwoom.dynamicCall("GetLoginInfo(QString)", "GetServerGubun")
         account_cnt = self.kiwoom.dynamicCall("GetLoginInfo(QString)", "ACCOUNT_CNT")
 
-        self.text_edit.setText("계좌번호: \n" + account_num.strip().replace(";","\n"))
-        self.text_edit.append("계좌갯수: " + account_cnt)
-        if server_info == 0:
-            self.text_edit.append("모의투자")
-        else:
-            self.text_edit.append("실거래서버")
-
     def btn3_clicked(self):
-        account_num = self.code_edit1.text()
-        self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "계좌번호", account_num)
+        #account_num = self.code_edit1.text()
+        #self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "계좌번호", account_num)
         self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "비밀번호", "0000")
         self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "비밀번호입력매체구분", "00")
         self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "조회구분", "2")
 
         self.kiwoom.dynamicCall("CommRqData(QString, QString, int, QString)", "opw00001", "opw00001", 0, "0101")
-
-    def btn4_clicked(self):
-        try:
-            ret = self.kiwoom.dynamicCall("GetCodeListByMarket(QString)", ["0"])
-
-            kospi_code_list = ret.split(';')
-            kospi_code_name_list = []
-            count = 0
-
-            for x in kospi_code_list:
-                kospi_name = self.kiwoom.dynamicCall("GetMasterCodeName(QString)", [x])
-                kospi_code_name_list.append(x + " : " + kospi_name)
-                print(self.kiwoom.dynamicCall("GetMasterCodeName(QString)", [x]))
-                count = count + 1
-            self.listWidget.addItems(kospi_code_name_list)
-            self.text_edit.append("코스피 총 갯수 : "+str(len(kospi_code_name_list)))
-
-        except Exception as e:
-            print(e)
-
-    def btn5_clicked(self):
-        try:
-            code = self.code_edit1.text()
-
-            # SetInputValue
-            self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "종목코드", code)
-
-            # CommRqData
-            self.kiwoom.dynamicCall("CommRqData(QString, QString, int, QString)", "opt10002_req", "opt10002", 0, "0101")
-
-
-        except Exception as e:
-            print(e)
 
     def btn6_clicked(self):
     # 조건식 리스트 불러오기
@@ -190,17 +192,17 @@ class MyWindow(QMainWindow):
             #isLoad = self.kiwoom.dynamicCall("GetConditionLoad()")
             isLoad = self.kiwoom.GetConditionLoad()
             if isLoad == 0:
-                self.text_edit.append("조건식 요청 실패")
+                print("조건식 요청 실패")
 
             data = self.kiwoom.dynamicCall("GetConditionNameList()")
             if data == "":
-                self.text_edit.append("getConditionNameList(): 사용자 조건식이 없습니다.")
+                time.sleep(5)
+                print("getConditionNameList(): 사용자 조건식이 없습니다.")
+                self.btn6_clicked()
 
-            conditionList = data.split(';')
-            del conditionList[-1]
-
-            self.listWidget.clear()
-            self.listWidget.addItems(conditionList)
+            self.conditionList = data.split(';')
+            del self.conditionList[-1]
+            print("조건식 리스트 검색 : " + str(self.conditionList))
 
         except Exception as e:
             print(e)
@@ -209,27 +211,21 @@ class MyWindow(QMainWindow):
     # 조건식 검색
         try:
             screenNo = "0150"
-            conditionName = self.code_edit1.text().split("^")[1]
-            conditionIndex = self.code_edit1.text().split("^")[0]
+            condition = self.conditionList[-1]
+            print("조건식 검색 : " + str(condition))
+            conditionName = condition.split("^")[1]
+            conditionIndex = condition.split("^")[0]
             isRealTime = "1"
             isRequest = self.kiwoom.dynamicCall("SendCondition(QString, QString, int, int)",
                                      screenNo, conditionName, conditionIndex, isRealTime)
+            print("test")
             self.receive_trCondition_loop.exec_()
+            print("test1")
             if isRequest == 0:
                 print("조건검색 실패")
             if isRequest == 1:
                 print("조건검색 접속 성공")
 
-        except Exception as e:
-            print(e)
-
-    def btn8_clicked(self):
-        try:
-            screenNo = "0150"
-            conditionName = self.code_edit1.text().split("^")[1]
-            conditionIndex = self.code_edit1.text().split("^")[0]
-            self.kiwoom.dynamicCall("SendConditionStop(QString, QString, int)",
-                                     screenNo, conditionName, conditionIndex)
         except Exception as e:
             print(e)
 
@@ -265,54 +261,65 @@ class MyWindow(QMainWindow):
         try:
             XKRX = ecals.get_calendar("XKRX")  # 한국 코드
 
-            account_sid = 'AC477d0e9cf7e151cfa77ab02304819c2e'
-            auth_token = '6a181bf2a174bec0095f31c12bec6871'
-            client = Client(account_sid, auth_token)
+            # 라인 메세지 API
+            TARGET_URL = 'https://notify-api.line.me/api/notify'
+            TOKEN = 'HyzsVdhFD7USNTk4YsB21GXZvtPssAzPER9kTb0j7Xw'  # 발급받은 토큰
+            headers = {'Authorization': 'Bearer ' + TOKEN}
 
             count = 0
             targetDay = 0
+            progressCount = 0
+            dayCount = 2
 
-            for x in range(20):
+            for x in range(dayCount-1):
+
+                self.StartRate.clear()
+                self.HighRate.clear()
+                self.LowRate.clear()
+                self.EndRate.clear()
+
                 # 17일 봉전 날짜
-                while targetDay != x+1:
+                while targetDay != x+2:
                     if XKRX.is_session(datetime.date.today() - datetime.timedelta(days=count)):
                         targetDay = targetDay + 1
                     count = count + 1
 
-                preDay = str(datetime.date.today() - datetime.timedelta(days=count)).replace("-","")
+                preDay = str(datetime.date.today() - datetime.timedelta(days=count-1)).replace("-","")
 
                 count = 0
                 targetDay = 0
 
                 # 18일 봉전 날짜
-                while targetDay != x:
+                while targetDay != x+1:
                     if XKRX.is_session(datetime.date.today() - datetime.timedelta(days=count)):
                         targetDay = targetDay + 1
                     count = count + 1
 
-                todayDay = str(datetime.date.today() - datetime.timedelta(days=count)).replace("-","")
+                todayDay = str(datetime.date.today() - datetime.timedelta(days=count-1)).replace("-","")
 
                 # 일별주가요청 opt10086
 
-                codeList = self.text_edit.toPlainText().split(',')
-                progressCount = 0
-                print(len(codeList))
-                if len(codeList) > 500:
+                print("종목수" + str(len(self.codeList)))
+
+                if len(self.codeList) > math.floor(250/dayCount):
                     timeDelay = 3.6
-                elif len(codeList) > 50 and len(codeList) <= 500:
+                elif len(self.codeList) > math.floor(25/dayCount) and len(self.codeList) <= math.floor(250/dayCount):
                     timeDelay = 1.8
-                elif len(codeList) > 2 and len(codeList) <= 50:
+                elif len(self.codeList) <= math.floor(25/dayCount):
                     timeDelay = 0.2
-                elif len(codeList) <= 2:
-                    timeDelay = 0
 
                 timeDelay = 3.6
-                for code in codeList:
+
+                print("타임딜레이" + str(timeDelay))
+
+                for code in self.codeList:
+                    # 작업 진행 상태
                     progressCount = progressCount + 1
-                    print(str(progressCount) + " / " + str(len(codeList) * 20))
+                    print(str(progressCount) + " / " + str(len(self.codeList) * (dayCount-1)))
 
                     # SetInputValue
                     code = code.replace(" ","")
+                    print(code)
                     self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "종목코드", code)
                     self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "조회일자", preDay)
                     self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "표시구분", "1")
@@ -352,20 +359,182 @@ class MyWindow(QMainWindow):
                         self.EndRate.pop()
                         del self.EndRate[0]
 
-                body_text = "시가 평균 : " + str(round(sum(self.StartRate)/len(self.StartRate),4)) + "\n" + \
-                            "고가 평균 : " + str(round(sum(self.HighRate) / len(self.HighRate),4)) + "\n" + \
-                            "저가 평균 : " + str(round(numpy.mean(self.LowRate), 4)) + "\n" + \
-                            "종가 평균 : " + str(round(numpy.mean(self.EndRate), 4))
-
-                message = client.messages.create(to='+821076293345', from_='+17164568703', body=body_text)
+                print("날짜 : " + todayDay)
                 print("시가 평균 : " + str(round(sum(self.StartRate)/len(self.StartRate),4)))
                 print("고가 평균 : " + str(round(sum(self.HighRate) / len(self.HighRate),4)))
                 print("저가 평균 : " + str(round(numpy.mean(self.LowRate),4)))
                 print("종가 평균 : " + str(round(numpy.mean(self.EndRate),4)))
 
-            os.system('shutdown -s -t 100')
+            #os.system('shutdown -s -t 100')
         except Exception as e:
+            #os.system('shutdown -s -t 100')
+            body_text = {'message': "에러 : " + str(e)}
+            requests.post(TARGET_URL, headers=headers, data=body_text)
             print(e)
+    
+    # 전원끄기
+    def powreOff(self):
+        os.system('shutdown -s -t 10')
+
+    def buying(self, codeList):
+
+        self.unit = ""
+        for code in codeList:
+            # SetInputValue
+            self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "종목코드", code)
+
+            # CommRqData, 호가단위 확인 'self.unit' 에 호가단위 저장
+            self.kiwoom.dynamicCall("CommRqData(QString, QString, int, QString)", "opt10001_req", "opt10001", 0, "0101")
+            time.sleep(3.6)
+            self.opt10001_req_loop.exec_()
+            print("호가단위 = " + str(self.unit))
+
+            # 전일비 비교 데이터 추출
+            # SetInputValue
+            code = code.replace(" ", "")
+            print(code)
+            self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "종목코드", code)
+            self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "조회일자", self.calculBusDay(1))
+            self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "표시구분", "1")
+            # CommRqData
+            self.kiwoom.dynamicCall("CommRqData(QString, QString, int, QString)", "opt10086_pre_req", "opt10086", 0,
+                                    "0103")
+            time.sleep(3.6)
+            self.opt10086_req_loop.exec()
+
+            # 전일 종가 확인 self.todayEnd 에 저장
+            # SetInputValue
+            self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "종목코드", code)
+            self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "조회일자", self.calculBusDay(0))
+            self.kiwoom.dynamicCall("SetInputValue(QString, QString)", "표시구분", "1")
+            # CommRqData
+            self.kiwoom.dynamicCall("CommRqData(QString, QString, int, QString)", "opt10086_today_req", "opt10086",
+                                    0,
+                                    "0103")
+            time.sleep(3.6)
+            self.opt10086_req_loop.exec()
+
+            print("전일종가 : " + str(self.todayEnd).strip())
+
+            #주문 진행 , 종가 기준 1%, 호가기준 가격내림
+            buyPrice = abs(int(self.todayEnd)*0.99)
+
+            if self.unit == 100:
+                buyPrice = math.floor(buyPrice/100) * 100
+            elif self.unit == 50:
+                buyPrice = math.floor(buyPrice/50) * 50
+            elif self.unit == 10:
+                buyPrice = math.floor(buyPrice/10) * 10
+            elif self.unit == 5:
+                buyPrice = math.floor(buyPrice/5)*5
+            elif self.unit == 1:
+                buyPrice = math.floor(buyPrice)
+
+            print("주문가 : " + str(buyPrice))
+            print(self.EndRate)
+
+
+
+    # 라인 메세지 전송
+    def SendLineMessage(self):
+
+        # 라인 메세지 API
+        TARGET_URL = 'https://notify-api.line.me/api/notify'
+        TOKEN = 'HyzsVdhFD7USNTk4YsB21GXZvtPssAzPER9kTb0j7Xw'  # 발급받은 토큰
+        headers = {'Authorization': 'Bearer ' + TOKEN}
+
+        iCount = round(len(self.StartRate) * 0.05)
+
+        body_text_info = "\n" + "검색식 : " + str(self.condition) + "\n" + \
+                         "날짜 : " + self.calculBusDay(0) + "\n" + \
+                         "종목 갯수 : " + str(len(self.StartRate)) + "\n" + \
+                         "시가 평균 : " + str(round(sum(self.StartRate) / len(self.StartRate), 4)) + "\n" + \
+                         "고가 평균 : " + str(round(sum(self.HighRate) / len(self.HighRate), 4)) + "\n" + \
+                         "저가 평균 : " + str(round(numpy.mean(self.LowRate), 4)) + "\n" + \
+                         "종가 평균 : " + str(round(numpy.mean(self.EndRate), 4)) + "\n" + \
+                         "종가 상위 5% : " + "{{top5}}" + "\n" + \
+                         "종가 하위 5% : " + "{{bottom5}}" + "\n" + \
+                         "종가 1% 이상 개수 : " + "{{EndRate4}}" + "\n" + \
+                         "종가 0~1% 개수 : " + "{{EndRate3}}" + "\n" + \
+                         "종가 -1~0% 개수 : " + "{{EndRate2}}" + "\n" + \
+                         "종가 -1% 이하 개수 : " + "{{EndRate1}}" + "\n" + \
+                         "고가 1% 이상 개수 : " + "{{HighRate}}" + "\n" + \
+                         "저가 -1% 개수 : " + "{{LowRate}}"
+        top5 = ""
+        bottom5 = ""
+
+        self.EndRate.sort()
+
+        # 종가 상위, 하위 5개 추출
+        if iCount >= 1:
+
+            for x in range(iCount):
+                top5 += str(self.EndRate[len(self.EndRate) - (x + 1)]) + ", "
+                bottom5 += str(self.EndRate[x]) + ", "
+
+        # 종가 -1%, -1~0%, 0~1%, 1% 갯수 추출
+        EndRate1 = 0
+        EndRate2 = 0
+        EndRate3 = 0
+        EndRate4 = 0
+
+        for x in self.EndRate:
+            if x < -0.01:
+                EndRate1 += 1
+            elif x >= -0.01 and x < 0:
+                EndRate2 += 1
+            elif x >= 0 and x <= 0.01:
+                EndRate3 += 1
+            elif x > 0.01:
+                EndRate4 += 1
+
+        # 고가, 저가 1% 이상 갯수
+        HighRate = 0
+        LowRate = 0
+
+        for x in self.HighRate:
+            if x >= 0.01:
+                HighRate += 1
+
+        for x in self.LowRate:
+            if x <= -0.01:
+                LowRate += 1
+
+        body_text = {'message': body_text_info.replace("{{top5}}", top5).replace("{{bottom5}}", bottom5)
+            .replace("EndRate1", str(EndRate1)).replace("EndRate2", str(EndRate2)).
+            replace("EndRate3", str(EndRate3)).replace("EndRate4", str(EndRate4)).replace("HighRate", str(HighRate))
+            .replace("LowRate", str(LowRate))}
+
+        requests.post(TARGET_URL, headers=headers, data=body_text)
+
+    # 엽업일전 날짜 계산 return 값 : day 영업일전 날짜
+    def calculBusDay(self, day):
+
+        XKRX = ecals.get_calendar("XKRX")  # 한국 코드
+
+        # 라인 메세지 API
+        TARGET_URL = 'https://notify-api.line.me/api/notify'
+        TOKEN = 'HyzsVdhFD7USNTk4YsB21GXZvtPssAzPER9kTb0j7Xw'  # 발급받은 토큰
+        headers = {'Authorization': 'Bearer ' + TOKEN}
+
+        count = 0
+        targetDay = 0
+        dayCount = day + 2
+
+        for x in range(dayCount - 1):
+
+            while targetDay != x + 1:
+                if XKRX.is_session(datetime.date.today() - datetime.timedelta(days=count)):
+                    targetDay = targetDay + 1
+                count = count + 1
+
+            todayDay = str(datetime.date.today() - datetime.timedelta(days=count - 1)).replace("-", "")
+
+        return todayDay
+
+    def receive_conditionVer(self, sMsg):
+        self.receive_conditionVer_loop.exit()
+        print("sMsg = " + str(sMsg))
 
     def receive_Chejan(self, sGubun, nItemCnt,sFIdList):
         #체결구분. 접수와 체결시 '0'값, 국내주식 잔고변경은 '1'값, 파생잔고변경은 '4'
@@ -376,21 +545,20 @@ class MyWindow(QMainWindow):
 
     def receive_msg(self, screenNo, rqname, trcode, msg):
         try:
-            self.text_edit.append(msg)
+            print(msg)
         except Exception as e:
             print(e)
 
 
     def receive_trCondition(self, screenNo, codes, conditionName, conditionIndex, inquiry):
     # 조건검색 결과 리스트 불러오기
-        print("1")
+        print("조건검색 결과 리스트 불러오기")
         try:
             if codes == "":
                 print("검색결과 없음")
                 return
-            codeList = codes.split(';')
-            del codeList[-1]
-            self.text_edit.setText(', '.join(codeList))
+            self.codeList = codes.split(';')
+            del self.codeList[-1]
             self.receive_trCondition_loop.exit()
 
         except Exception as e:
@@ -398,22 +566,40 @@ class MyWindow(QMainWindow):
 
     def receive_trdata(self, screen_no, rqname, trcode, recordname, prev_next, data_len, err_code, msg1, msg2):
         try:
-            print(rqname)
+            print("요청이름 : " + rqname)
 
+            # 호가단위 확인
             if rqname == "opt10001_req":
                 name = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
                                                rqname, 0, "종목명")
-                volume = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
-                                                 rqname, 0, "거래량")
-                price = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
+                #volume = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
+                #                                 rqname, 0, "거래량")
+                self.price = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
                                                  rqname, 0, "현재가")
-                BPS = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
-                                                 rqname, 0, "BPS")
+                #BPS = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
+                #                                 rqname, 0, "BPS")
+                #unit = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
+                #                                 rqname, 0, "액면가단위")
 
-                self.text_edit.append("종목명: " + name.strip())
-                self.text_edit.append("거래량: " + volume.strip())
-                self.text_edit.append("현재가: " + price.strip())
-                self.text_edit.append("BPS: " + BPS.strip())
+                #self.text_edit.append("종목명: " + name.strip())
+                #self.text_edit.append("거래량: " + volume.strip())
+                print("종목명: " + name.strip())
+                print("현재가: " + self.price.strip())
+                #self.text_edit.append("BPS: " + BPS.strip())
+                self.opt10001_req_loop.exit()
+
+                self.price = abs(int(self.price))
+                if self.price >= 50000:
+                    self.unit = 100
+                # 10,000원 이상~50,000원 미만
+                elif 10000 <= self.price < 50000:
+                    self.unit = 50
+                elif 5000 <= self.price < 10000:
+                    self.unit = 10
+                elif 1000 <= self.price < 5000:
+                    self.unit = 5
+                elif self.price < 1000:
+                    self.unit = 1
 
             if rqname == "opt10002_req":
                 name = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
@@ -422,18 +608,18 @@ class MyWindow(QMainWindow):
                 bound = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
                                                rqname, 0, "등락율")
 
-                self.text_edit.append("종목명: " + name.strip())
-                self.text_edit.append("bound: " + bound.strip())
+                #self.text_edit.append("종목명: " + name.strip())
+                #self.text_edit.append("bound: " + bound.strip())
 
-                if price < BPS:
-                    self.text_edit.append("종목명: " + name.strip())
-                    self.text_edit.append("현재가: " + price.strip())
+                #if price < BPS:
+                    #self.text_edit.append("종목명: " + name.strip())
+                    #self.text_edit.append("현재가: " + price.strip())
 
             if rqname == "opw00001":
                 diposit = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
                                                rqname, 0, "예수금")
 
-                self.text_edit.setText("예수금: " + diposit.strip())
+                #self.text_edit.setText("예수금: " + diposit.strip())
 
 
             if rqname == "opt10086_pre_req":
@@ -458,33 +644,35 @@ class MyWindow(QMainWindow):
                 self.opt10086_req_loop.exit()
 
             if rqname == "opt10086_today_req":
-                todayStart = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
+                self.todayStart = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
                                                rqname, 0, "시가")
-                todayHigh = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
+                self.todayHigh = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
                                                  rqname, 0, "고가")
-                todayLow = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
+                self.todayLow = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
                                                  rqname, 0, "저가")
-                todayEnd = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
+                self.todayEnd = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
                                                  rqname, 0, "종가")
-                todayDay = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
+                self.todayDay = self.kiwoom.dynamicCall("CommGetData(QString, QString, QString, int, QString)", trcode, "",
                                               rqname, 0, "전일비")
 
                 # 등락률 = (해당가격 - 전일종가)/전일종가
 
-                self.StartRate.append(round((abs(int(todayStart)) - abs(int(self.preEnd)))/abs(int(self.preEnd)), 4))
-                self.HighRate.append(round((abs(int(todayHigh)) - abs(int(self.preEnd))) / abs(int(self.preEnd)), 4))
-                self.LowRate.append(round((abs(int(todayLow)) - abs(int(self.preEnd))) / abs(int(self.preEnd)), 4))
-                self.EndRate.append(round((abs(int(todayEnd)) - abs(int(self.preEnd))) / abs(int(self.preEnd)), 4))
                 #print(todayStart)
                 #print(todayHigh)
                 #print(todayLow)
                 #print(todayEnd)
                 #print(todayDay)
 
-                #print(abs(int(todayHigh)) - abs(int(self.preHigh)))
-                #print(abs(int(todayLow)) - abs(int(self.preLow)))
-                #print(abs(int(todayEnd)) - abs(int(self.preEnd)))
-                #print(abs(int(todayDay)) - abs(int(self.preDay)))
+                self.StartRate.append(round((abs(int(self.todayStart)) - abs(int(self.preEnd))) / abs(int(self.preEnd)), 4))
+                self.HighRate.append(round((abs(int(self.todayHigh)) - abs(int(self.preEnd))) / abs(int(self.preEnd)), 4))
+                self.LowRate.append(round((abs(int(self.todayLow)) - abs(int(self.preEnd))) / abs(int(self.preEnd)), 4))
+                self.EndRate.append(round((abs(int(self.todayEnd)) - abs(int(self.preEnd))) / abs(int(self.preEnd)), 4))
+                print("전일종가 : {0}, 금일종가 : {1}".format(str(self.preEnd).strip(), str(self.todayEnd).strip()))
+                # print(abs(int(self.todayHigh)) - abs(int(self.preHigh)))
+                # print(abs(int(self.todayLow)) - abs(int(self.preLow)))
+                # print(abs(int(self.todayEnd)) - abs(int(self.preEnd)))
+                # print(abs(int(self.todayDay)) - abs(int(self.preDay)))
+                print(round((abs(int(self.todayEnd)) - abs(int(self.preEnd))) / abs(int(self.preEnd)), 4))
                 self.opt10086_req_loop.exit()
 
         except Exception as e:
@@ -494,5 +682,4 @@ class MyWindow(QMainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     myWindow = MyWindow()
-    myWindow.show()
     app.exec_()
