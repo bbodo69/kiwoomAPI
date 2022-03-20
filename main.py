@@ -23,6 +23,11 @@ class MyWindow():
             self.LowRate = []
             self.EndRate = []
 
+        # 각종 플래그 설정
+            # 매수 진행여부 트리거
+            self.moiTrade = False
+
+
             # Kiwoom Login
             self.kiwoom = QAxWidget("KHOPENAPI.KHOpenAPICtrl.1")
             self.kiwoom.CommConnect()
@@ -145,8 +150,8 @@ class MyWindow():
 
             # # 조건식 결과 종목 매수 진행
             #
-            # code = '005110'
             # orderAmount = '1'
+            # code = '005110'
             # orderPrice = '701'
             # # 사용자구분명, 화면번호, 계좌번호 10자리, 주문유형 1~7, 종목코드(6자리), 주문수량, 주문가격, 거래구분 00~81, 원주문번호
             #
@@ -414,10 +419,10 @@ class MyWindow():
             time.sleep(3.6)
             self.opt10086_req_loop.exec()
 
-            print("전일종가 : " + str(self.todayEnd).strip())
+            print("전일종가 : " + str(self.preEnd).strip())
 
             #주문 진행 , 종가 기준 1%, 호가기준 가격내림
-            buyPrice = abs(int(self.todayEnd)*0.99)
+            buyPrice = abs(int(self.preEnd)*0.99)
 
             if self.unit == 100:
                 buyPrice = math.floor(buyPrice/100) * 100
@@ -432,6 +437,24 @@ class MyWindow():
 
             print("주문가 : " + str(buyPrice))
             print(self.EndRate)
+
+            # 조건식 결과 종목 매수 진행
+            if self.moiTrade == True:
+                orderAmount = round(500000 / buyPrice)
+                orderPrice = buyPrice
+
+                # 사용자구분명, 화면번호, 계좌번호 10자리, 주문유형 1~7, 종목코드(6자리), 주문수량, 주문가격, 거래구분 00~81, 원주문번호
+                accountNumber = self.useAccountNum
+                self.SendOrderRequest = self.kiwoom.SendOrder("SendOrder_req", "0211", accountNumber, 1, code,
+                                                   int(orderAmount), int(orderPrice), "00", "")
+
+                self.SendOrderSucceseCount = 0
+                if self.SendOrderRequest == 0:
+                    print("매수주문 성공")
+                    self.SendOrderSucceseCount += 1
+                else:
+                    print("매수주문 실패")
+
 
 
 
@@ -459,7 +482,8 @@ class MyWindow():
                          "종가 -1~0% 개수 : " + "{{EndRate2}}" + "\n" + \
                          "종가 -1% 이하 개수 : " + "{{EndRate1}}" + "\n" + \
                          "고가 1% 이상 개수 : " + "{{HighRate}}" + "\n" + \
-                         "저가 -1% 개수 : " + "{{LowRate}}"
+                         "저가 -1% 개수 : " + "{{LowRate}}" + "\n" + \
+                         "총 주문 / 성공 주문 : " + "{{total}} / {{SuccessOrder}}"
         top5 = ""
         bottom5 = ""
 
@@ -503,7 +527,7 @@ class MyWindow():
         body_text = {'message': body_text_info.replace("{{top5}}", top5).replace("{{bottom5}}", bottom5)
             .replace("EndRate1", str(EndRate1)).replace("EndRate2", str(EndRate2)).
             replace("EndRate3", str(EndRate3)).replace("EndRate4", str(EndRate4)).replace("HighRate", str(HighRate))
-            .replace("LowRate", str(LowRate))}
+            .replace("LowRate", str(LowRate)).replace("{{total}}", str(len(self.StartRate))).replace("{{SuccessOrder}}", str(self.SendOrderSucceseCount))}
 
         requests.post(TARGET_URL, headers=headers, data=body_text)
 
@@ -538,10 +562,14 @@ class MyWindow():
 
     def receive_Chejan(self, sGubun, nItemCnt,sFIdList):
         #체결구분. 접수와 체결시 '0'값, 국내주식 잔고변경은 '1'값, 파생잔고변경은 '4'
-        print("receiveChejanData 호출")
-        print(sGubun)
-        print(nItemCnt)
-        print(sFIdList)
+
+        # 라인 메세지 API
+        TARGET_URL = 'https://notify-api.line.me/api/notify'
+        TOKEN = 'HyzsVdhFD7USNTk4YsB21GXZvtPssAzPER9kTb0j7Xw'  # 발급받은 토큰
+        headers = {'Authorization': 'Bearer ' + TOKEN}
+
+        body_text = {'message': "체결완료"}
+        requests.post(TARGET_URL, headers=headers, data=body_text)
 
     def receive_msg(self, screenNo, rqname, trcode, msg):
         try:
